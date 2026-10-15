@@ -1,8 +1,9 @@
 // ==UserScript==
 // @name         Spider raw viewer
 // @namespace    tampermonkey-description-viewer
-// @version      1.0.4
+// @version      1.0.5
 // @description  Показывает исходный текст описания ячейки без интерпретации HTML
+// @author       Heono3HaHbiu
 // @match        https://spider.pulscen.ru/*
 // @grant        none
 // @run-at       document-idle
