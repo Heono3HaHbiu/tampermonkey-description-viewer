@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Spider raw viewer
 // @namespace    tampermonkey-description-viewer
-// @version      1.0.3
+// @version      1.0.4
 // @description  Показывает исходный текст описания ячейки без интерпретации HTML
 // @match        https://spider.pulscen.ru/*
 // @grant        none
@@ -11,7 +11,21 @@
 (function () {
     'use strict';
 
-    const CELL_SELECTOR = '.cell.cell__description';
+    const CELL_SELECTORS = [
+    '.cell.cell__description',
+    '.cell.cell__working_note',
+    '.cell.cell__working_note_2',
+    '.cell.cell__working_note_3'
+];
+
+const SOURCE_SELECTOR = '.field-wrapper > span.stretch[data-value]';
+
+const FIELD_NAMES = {
+    description: 'Описание',
+    working_note: 'Рабочая заметка 1',
+    working_note_2: 'Рабочая заметка 2',
+    working_note_3: 'Рабочая заметка 3'
+};
     const SOURCE_SELECTOR = '.field-wrapper > span.stretch[data-value]';
     const style = document.createElement('style');
     style.textContent = `
@@ -176,40 +190,47 @@
         document.addEventListener('keydown', onKeyDown);
         textarea.focus();
     }
-    function addIcons() {
-        document.querySelectorAll(CELL_SELECTOR).forEach(cell => {
-            if (cell.querySelector(':scope > .raw-text-viewer-icon')) {
-                return;
-            }
+function addIcons() {
+    document.querySelectorAll(CELL_SELECTORS.join(',')).forEach(cell => {
+        if (cell.querySelector(':scope > .raw-text-viewer-icon')) {
+            return;
+        }
 
-            const source = cell.querySelector(SOURCE_SELECTOR);
-            if (!source) return;
+        const source = cell.querySelector(SOURCE_SELECTOR);
+        if (!source) return;
 
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'raw-text-viewer-icon';
-            button.textContent = '⌕';
-            button.title = 'Показать исходный текст';
-            button.setAttribute('aria-label', 'Показать исходный текст');
-            if (getComputedStyle(cell).position === 'static') {
-                cell.style.position = 'relative';
-            }
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'raw-text-viewer-icon';
+        button.textContent = '⌕';
 
-            button.addEventListener('click', event => {
-                event.preventDefault();
-                event.stopPropagation();
-                const rawText = source.getAttribute('data-value') ?? '';
-                showRawText(rawText, cell.getAttribute('data-id'));
-            });
+        const fieldWrapper = cell.querySelector('.field-wrapper');
+        const fieldType = fieldWrapper?.getAttribute('data-type');
+        const fieldName = FIELD_NAMES[fieldType] || 'Исходный текст';
 
-            cell.appendChild(button);
+        button.title = `Показать: ${fieldName}`;
+        button.setAttribute('aria-label', button.title);
+
+        if (getComputedStyle(cell).position === 'static') {
+            cell.style.position = 'relative';
+        }
+
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const rawText = source.getAttribute('data-value') ?? '';
+            const cellId = cell.getAttribute('data-id');
+
+            showRawText(
+                rawText,
+                `${fieldName} | ID: ${cellId || 'не указан'}`
+            );
         });
-    }
-    addIcons();
-    const observer = new MutationObserver(() => {
-        addIcons();
-    });
 
+        cell.appendChild(button);
+    });
+}
     observer.observe(document.body, {
         childList: true,
         subtree: true
