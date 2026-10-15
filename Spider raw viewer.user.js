@@ -1,8 +1,9 @@
+
 // ==UserScript==
-// @name         Spider raw viewer
+// @name         Spider Raw Viewer
 // @namespace    tampermonkey-description-viewer
-// @version      1.0.5
-// @description  Показывает исходный текст описания ячейки без интерпретации HTML
+// @version      1.1.0
+// @description  Просмотр исходного текста описаний и рабочих заметок
 // @author       Heono3HaHbiu
 // @match        https://spider.pulscen.ru/*
 // @grant        none
@@ -12,23 +13,29 @@
 (function () {
     'use strict';
 
+    // Типы ячеек, в которых нужно показывать иконку
     const CELL_SELECTORS = [
-    '.cell.cell__description',
-    '.cell.cell__working_note',
-    '.cell.cell__working_note_2',
-    '.cell.cell__working_note_3'
-];
+        '.cell.cell__description',
+        '.cell.cell__working_note',
+        '.cell.cell__working_note_2',
+        '.cell.cell__working_note_3'
+    ];
 
-const SOURCE_SELECTOR = '.field-wrapper > span.stretch[data-value]';
+    // Источник исходного текста
+    const SOURCE_SELECTOR =
+        '.field-wrapper > span.stretch[data-value]';
 
-const FIELD_NAMES = {
-    description: 'Описание',
-    working_note: 'Рабочая заметка 1',
-    working_note_2: 'Рабочая заметка 2',
-    working_note_3: 'Рабочая заметка 3'
-};
-    const SOURCE_SELECTOR = '.field-wrapper > span.stretch[data-value]';
+    // Названия полей
+    const FIELD_NAMES = {
+        description: 'Описание',
+        working_note: 'Рабочая заметка 1',
+        working_note_2: 'Рабочая заметка 2',
+        working_note_3: 'Рабочая заметка 3'
+    };
+
+    // Стили иконки и окна
     const style = document.createElement('style');
+
     style.textContent = `
         .raw-text-viewer-icon {
             position: absolute;
@@ -120,8 +127,11 @@ const FIELD_NAMES = {
             cursor: pointer;
         }
     `;
+
     document.head.appendChild(style);
-    function showRawText(rawText, cellId) {
+
+    // Открытие окна с исходным текстом
+    function showRawText(rawText, titleText) {
         const overlay = document.createElement('div');
         overlay.className = 'raw-text-viewer-overlay';
 
@@ -132,7 +142,7 @@ const FIELD_NAMES = {
         header.className = 'raw-text-viewer-header';
 
         const title = document.createElement('span');
-        title.textContent = `Исходный текст — ID: ${cellId || 'не указан'}`;
+        title.textContent = titleText;
 
         const close = document.createElement('button');
         close.className = 'raw-text-viewer-close';
@@ -143,6 +153,9 @@ const FIELD_NAMES = {
         const textarea = document.createElement('textarea');
         textarea.className = 'raw-text-viewer-textarea';
         textarea.readOnly = true;
+
+        // Важно: показываем строку как есть.
+        // Не используем innerHTML и не декодируем HTML-сущности.
         textarea.value = rawText;
 
         const copy = document.createElement('button');
@@ -156,13 +169,17 @@ const FIELD_NAMES = {
         }
 
         function onKeyDown(event) {
-            if (event.key === 'Escape') closeWindow();
+            if (event.key === 'Escape') {
+                closeWindow();
+            }
         }
 
         close.addEventListener('click', closeWindow);
 
         overlay.addEventListener('click', event => {
-            if (event.target === overlay) closeWindow();
+            if (event.target === overlay) {
+                closeWindow();
+            }
         });
 
         copy.addEventListener('click', async () => {
@@ -172,8 +189,13 @@ const FIELD_NAMES = {
             } catch {
                 textarea.focus();
                 textarea.select();
-                document.execCommand('copy');
-                copy.textContent = 'Текст выделен / скопирован';
+
+                try {
+                    document.execCommand('copy');
+                    copy.textContent = 'Текст скопирован';
+                } catch {
+                    copy.textContent = 'Скопируйте выделенный текст';
+                }
             }
 
             setTimeout(() => {
@@ -191,47 +213,67 @@ const FIELD_NAMES = {
         document.addEventListener('keydown', onKeyDown);
         textarea.focus();
     }
-function addIcons() {
-    document.querySelectorAll(CELL_SELECTORS.join(',')).forEach(cell => {
-        if (cell.querySelector(':scope > .raw-text-viewer-icon')) {
-            return;
-        }
 
-        const source = cell.querySelector(SOURCE_SELECTOR);
-        if (!source) return;
+    // Добавление иконок во все четыре типа ячеек
+    function addIcons() {
+        const selector = CELL_SELECTORS.join(',');
 
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'raw-text-viewer-icon';
-        button.textContent = '⌕';
+        document.querySelectorAll(selector).forEach(cell => {
+            // Не добавляем иконку повторно
+            if (cell.querySelector(':scope > .raw-text-viewer-icon')) {
+                return;
+            }
 
-        const fieldWrapper = cell.querySelector('.field-wrapper');
-        const fieldType = fieldWrapper?.getAttribute('data-type');
-        const fieldName = FIELD_NAMES[fieldType] || 'Исходный текст';
+            const source = cell.querySelector(SOURCE_SELECTOR);
 
-        button.title = `Показать: ${fieldName}`;
-        button.setAttribute('aria-label', button.title);
+            if (!source) {
+                return;
+            }
 
-        if (getComputedStyle(cell).position === 'static') {
-            cell.style.position = 'relative';
-        }
+            const fieldWrapper = cell.querySelector('.field-wrapper');
+            const fieldType = fieldWrapper
+                ? fieldWrapper.getAttribute('data-type')
+                : '';
 
-        button.addEventListener('click', event => {
-            event.preventDefault();
-            event.stopPropagation();
+            const fieldName = FIELD_NAMES[fieldType] || 'Исходный текст';
 
-            const rawText = source.getAttribute('data-value') ?? '';
-            const cellId = cell.getAttribute('data-id');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'raw-text-viewer-icon';
+            button.textContent = '⌕';
+            button.title = `Показать: ${fieldName}`;
+            button.setAttribute('aria-label', button.title);
 
-            showRawText(
-                rawText,
-                `${fieldName} | ID: ${cellId || 'не указан'}`
-            );
+            if (getComputedStyle(cell).position === 'static') {
+                cell.style.position = 'relative';
+            }
+
+            button.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                // Читаем значение непосредственно из data-value
+                const rawText = source.getAttribute('data-value') ?? '';
+                const cellId = cell.getAttribute('data-id') || 'не указан';
+
+                showRawText(
+                    rawText,
+                    `${fieldName} | ID: ${cellId}`
+                );
+            });
+
+            cell.appendChild(button);
         });
+    }
 
-        cell.appendChild(button);
+    // Первичный запуск
+    addIcons();
+
+    // Поддержка динамического обновления таблицы
+    const observer = new MutationObserver(() => {
+        addIcons();
     });
-}
+
     observer.observe(document.body, {
         childList: true,
         subtree: true
