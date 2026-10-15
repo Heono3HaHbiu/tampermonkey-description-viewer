@@ -113,7 +113,7 @@
             background: #fafafa;
             color: #111;
             font: 13px/1.5 monospace;
-            white-space: pre;
+            white-space: unset;
             tab-size: 4;
         }
 
