@@ -2,38 +2,35 @@
 // ==UserScript==
 // @name         Spider Raw Viewer
 // @namespace    tampermonkey-description-viewer
-// @version      1.1.0
-// @description  Просмотр исходного текста описаний и рабочих заметок
-// @author       Heono3HaHbiu
+// @version      1.2.0
+// @description  Просмотр описаний и рабочих заметок с декодированием HTML-мнемоник
 // @match        https://spider.pulscen.ru/*
+// @author       Heono3HaHbiu
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
 
 (function () {
     'use strict';
-
-    // Типы ячеек, в которых нужно показывать иконку
     const CELL_SELECTORS = [
         '.cell.cell__description',
         '.cell.cell__working_note',
         '.cell.cell__working_note_2',
         '.cell.cell__working_note_3'
     ];
-
-    // Источник исходного текста
     const SOURCE_SELECTOR =
         '.field-wrapper > span.stretch[data-value]';
-
-    // Названия полей
     const FIELD_NAMES = {
         description: 'Описание',
         working_note: 'Рабочая заметка 1',
         working_note_2: 'Рабочая заметка 2',
         working_note_3: 'Рабочая заметка 3'
     };
-
-    // Стили иконки и окна
+    function decodeHtmlEntities(value) {
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = value;
+        return textarea.value;
+    }
     const style = document.createElement('style');
 
     style.textContent = `
@@ -113,7 +110,7 @@
             background: #fafafa;
             color: #111;
             font: 13px/1.5 monospace;
-            white-space: unset;
+            white-space: pre;
             tab-size: 4;
         }
 
@@ -129,8 +126,6 @@
     `;
 
     document.head.appendChild(style);
-
-    // Открытие окна с исходным текстом
     function showRawText(rawText, titleText) {
         const overlay = document.createElement('div');
         overlay.className = 'raw-text-viewer-overlay';
@@ -153,10 +148,7 @@
         const textarea = document.createElement('textarea');
         textarea.className = 'raw-text-viewer-textarea';
         textarea.readOnly = true;
-
-        // Важно: показываем строку как есть.
-        // Не используем innerHTML и не декодируем HTML-сущности.
-        textarea.value = rawText;
+        textarea.value = decodeHtmlEntities(rawText);
 
         const copy = document.createElement('button');
         copy.className = 'raw-text-viewer-copy';
@@ -184,7 +176,7 @@
 
         copy.addEventListener('click', async () => {
             try {
-                await navigator.clipboard.writeText(rawText);
+                await navigator.clipboard.writeText(textarea.value);
                 copy.textContent = 'Скопировано!';
             } catch {
                 textarea.focus();
@@ -213,22 +205,16 @@
         document.addEventListener('keydown', onKeyDown);
         textarea.focus();
     }
-
-    // Добавление иконок во все четыре типа ячеек
     function addIcons() {
         const selector = CELL_SELECTORS.join(',');
 
         document.querySelectorAll(selector).forEach(cell => {
-            // Не добавляем иконку повторно
             if (cell.querySelector(':scope > .raw-text-viewer-icon')) {
                 return;
             }
 
             const source = cell.querySelector(SOURCE_SELECTOR);
-
-            if (!source) {
-                return;
-            }
+            if (!source) return;
 
             const fieldWrapper = cell.querySelector('.field-wrapper');
             const fieldType = fieldWrapper
@@ -252,7 +238,6 @@
                 event.preventDefault();
                 event.stopPropagation();
 
-                // Читаем значение непосредственно из data-value
                 const rawText = source.getAttribute('data-value') ?? '';
                 const cellId = cell.getAttribute('data-id') || 'не указан';
 
@@ -265,11 +250,7 @@
             cell.appendChild(button);
         });
     }
-
-    // Первичный запуск
     addIcons();
-
-    // Поддержка динамического обновления таблицы
     const observer = new MutationObserver(() => {
         addIcons();
     });
